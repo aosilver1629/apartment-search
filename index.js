@@ -33,7 +33,7 @@ app.post('/api/users/register', async (req, res) => {
 
 
         // Insert the new user into the database
-        const newUserQuery = 'INSERT INTO users (firstname, lastname, email) VALUES ($1, $2, $3) RETURNING *';
+        const newUserQuery = 'INSERT INTO users (firstname, lastname, email, createdat) VALUES ($1, $2, $3,now()) RETURNING *';
         const newUser = await pool.query(newUserQuery, [firstname, lastname, email]);
 
         // Respond with the newly created user, excluding the password
@@ -202,26 +202,95 @@ app.get('/api/listings/:listingid', async (req, res) => {
 
 app.put('/api/listings/:listingid', async (req, res) => {
     const { listingid } = req.params;
-    const { title, description, price, streetAddress, city, state, zip, neighborhood, bedrooms, bathrooms, squarefeet, status } = req.body;
+    const {
+        title, description, price, streetaddress, city, state, zip,
+        neighborhood, bedrooms, bathrooms, squarefeet, status, site
+    } = req.body;
 
-    try {
-        const updatedListing = await pool.query(
-            'UPDATE listings SET title = $1, description = $2, price = $3, streetAddress = $4, city = $5, state = $6, zip = $7, neighborhood = $8, bedrooms = $9, bathrooms = $10, squarefeet = $11, status = $12 WHERE listingid = $13 RETURNING *',
-            [title, description, price, streetAddress, city, state, zip, neighborhood, bedrooms, bathrooms, squarefeet, status, listingid]
-        );
+    // Initialize an array to hold the parts of the SQL statement.
+    let queryParts = [];
+    let queryValues = [];
 
-        if (updatedListing.rows.length === 0) {
-            return res.status(404).json({ message: "Listing not found" });
-        }
-
-        res.json({
-            message: "Listing updated successfully",
-            listing: updatedListing.rows[0]
-        });
-    } catch (error) {
-        res.status(500).json({ message: "Error updating listing", error: error.message });
+    // For each possible field, add to the query if it's provided.
+    if (title !== undefined) {
+        queryParts.push(`title = $${queryParts.length + 1}`);
+        queryValues.push(title);
     }
-});
+    if (description !== undefined) {
+        queryParts.push(`description = $${queryParts.length + 1}`);
+        queryValues.push(description);
+    }
+    // Repeat for each field...
+
+    if (price !== undefined) {
+        queryParts.push(`price = $${queryParts.length + 1}`);
+        queryValues.push(price);
+    }
+    if (streetaddress !== undefined) {
+        queryParts.push(`streetaddress = $${queryParts.length + 1}`);
+        queryValues.push(streetaddress);
+    }
+    if (city !== undefined) {
+        queryParts.push(`city = $${queryParts.length + 1}`);
+        queryValues.push(city);
+    }
+    if (state !== undefined) {
+        queryParts.push(`state = $${queryParts.length + 1}`);
+        queryValues.push(state);
+    }
+    if (zip !== undefined) {
+        queryParts.push(`zip = $${queryParts.length + 1}`);
+        queryValues.push(zip);
+    }
+    if (neighborhood !== undefined) {
+        queryParts.push(`neighborhood = $${queryParts.length + 1}`);
+        queryValues.push(neighborhood);
+    }
+    if (bedrooms !== undefined) {
+        queryParts.push(`bedrooms = $${queryParts.length + 1}`);
+        queryValues.push(bedrooms);
+    }
+    if (bathrooms !== undefined) {
+        queryParts.push(`bathrooms = $${queryParts.length + 1}`);
+        queryValues.push(bathrooms);
+    }
+
+    if (squarefeet !== undefined) {
+        queryParts.push(`squarefeet = $${queryParts.length + 1}`);
+        queryValues.push(squarefeet);
+    }
+    if (status !== undefined) {
+        queryParts.push(`status = $${queryParts.length + 1}`);
+        queryValues.push(status);
+    }
+    if (site !== undefined) {
+        queryParts.push(`site = $${queryParts.length + 1}`);
+        queryValues.push(site);
+    }
+        // Check if any fields were provided
+        if (queryParts.length === 0) {
+            return res.status(400).json({ message: "No fields provided for update" });
+        }
+    
+        let queryText = `UPDATE listings SET ${queryParts.join(", ")} WHERE listingid = $${queryParts.length + 1} RETURNING *;`;
+        queryValues.push(listingid);
+
+        console.log(queryText)
+    
+        try {
+            const { rows } = await pool.query(queryText, queryValues);
+            if (rows.length === 0) {
+                return res.status(404).json({ message: "Listing not found" });
+            }
+            res.json({
+                message: "Listing updated successfully",
+                listing: rows[0]
+            });
+        } catch (error) {
+            res.status(500).json({ message: "Error updating listing", error: error.message });
+        }
+    });
+
 
 
 // Delete a listing
